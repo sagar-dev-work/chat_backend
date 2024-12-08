@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat App</title>
+    <style>
+        /* Basic styling */
+        .chat-box {
+            width: 300px;
+            height: 400px;
+            overflow-y: scroll;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .message {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="chatBox" class="chat-box"></div>
+
+    <input type="text" id="messageInput" placeholder="Enter your message" />
+    <button onclick="sendMessage()">Send</button>
+
+    <button onclick="markMessagesAsRead()">Mark Messages as Read</button>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io(); // Connect to the server via Socket.IO
+
+        const user1 = 1; // For example, the ID of the logged-in user
+        const user2 = 2; // ID of the other user you want to chat with
+
+        // Fetch the chat messages and display them
+        async function fetchChats() {
+            const response = await fetch(`/api/chat?user1=${user1}&user2=${user2}`);
+            const data = await response.json();
+
+            if (data.success) {
+                const chatBox = document.getElementById('chatBox');
+                chatBox.innerHTML = '';
+
+                data.chats.forEach(chat => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.classList.add('message');
+                    messageDiv.textContent = `${chat.sender_id === user1 ? 'You' : 'Other'}: ${chat.message}`;
+                    chatBox.appendChild(messageDiv);
+                });
+            } else {
+                console.error('Error fetching chats:', data.error);
+            }
+        }
+
+        // Send a chat message
+        async function sendMessage() {
+            const message = document.getElementById('messageInput').value;
+            if (!message) return alert('Message cannot be empty');
+
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sender_id: user1,
+                    receiver_id: user2,
+                    message: message,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                console.log('Message sent successfully:', data.chat);
+                // We can also call fetchChats() here if needed
+            } else {
+                console.error('Error sending message:', data.error);
+            }
+        }
+
+        // Mark messages as read
+        async function markMessagesAsRead() {
+            const response = await fetch('/api/chat/mark-read', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user1: user1,
+                    user2: user2,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                console.log(`Marked ${data.updatedCount} messages as read`);
+                fetchChats(); // Refresh chat to show updated status
+            } else {
+                console.error('Error marking messages as read:', data.error);
+            }
+        }
+
+        // Listen for new chat messages and display them automatically
+        socket.on('new-chat-message', (chat) => {
+            console.log('New chat message received:', chat);
+            const chatBox = document.getElementById('chatBox');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            messageDiv.textContent = `${chat.sender_id === user1 ? 'You' : 'Other'}: ${chat.message}`;
+            chatBox.appendChild(messageDiv);
+        });
+
+        // Initial fetch of chats
+        fetchChats();
+    </script>
+
+</body>
+</html>
